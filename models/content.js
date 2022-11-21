@@ -36,11 +36,17 @@ async function findAll(values = {}, options = {}) {
   const orderByClause = buildOrderByClause(values?.order);
 
   query.text = `
-      ${selectClause}
+      WITH content_window AS (
+      SELECT
+        COUNT(*) OVER()::INTEGER as total_rows,
+        id
+      FROM contents
       ${whereClause}
       ${orderByClause}
 
       ${values.count ? 'LIMIT 1' : 'LIMIT $1 OFFSET $2'}
+      )
+      ${selectClause}
       ;`;
 
   if (values.where) {
@@ -85,9 +91,9 @@ async function findAll(values = {}, options = {}) {
     if (values.count) {
       return `
         SELECT
-          COUNT(*) OVER()::INTEGER as total_rows
+          total_rows
         FROM
-          contents
+          content_window
         `;
     }
 
@@ -106,7 +112,7 @@ async function findAll(values = {}, options = {}) {
         contents.published_at,
         contents.deleted_at,
         users.username as owner_username,
-        COUNT(*) OVER()::INTEGER as total_rows,
+        content_window.total_rows,
         get_current_balance('content:tabcoin', contents.id) as tabcoins,
 
         -- Originally this query returned a list of contents to the server and
@@ -114,36 +120,39 @@ async function findAll(values = {}, options = {}) {
         -- the findChildrenCount() method to get the children count. Now we perform a
         -- subquery that is not performant but everything is embedded in one travel.
         -- https://github.com/filipedeschamps/tabnews.com.br/blob/de65be914f0fd7b5eed8905718e4ab286b10557e/models/content.js#L51
-        (
-          WITH RECURSIVE children AS (
-            SELECT
-                id,
-                parent_id
-            FROM
-              contents as all_contents
-            WHERE
-              all_contents.id = contents.id AND
-              all_contents.status = 'published'
-            UNION ALL
-              SELECT
-                all_contents.id,
-                all_contents.parent_id
-              FROM
-                contents as all_contents
-              INNER JOIN
-                children ON all_contents.parent_id = children.id
-              WHERE
-                all_contents.status = 'published'
-          )
-          SELECT
-            count(children.id)::integer
-          FROM
-            children
-          WHERE
-            children.id NOT IN (contents.id)
-        ) as children_deep_count
+        --        (
+        --          WITH RECURSIVE children AS (
+        --            SELECT
+        --                id,
+        --                parent_id
+        --            FROM
+        --              contents as all_contents
+        --            WHERE
+        --              all_contents.id = contents.id AND
+        --              all_contents.status = 'published'
+        --            UNION ALL
+        --              SELECT
+        --                all_contents.id,
+        --                all_contents.parent_id
+        --              FROM
+        --                contents as all_contents
+        --              INNER JOIN
+        --                children ON all_contents.parent_id = children.id
+        --              WHERE
+        --                all_contents.status = 'published'
+        --          )
+        --          SELECT
+        --            count(children.id)::integer
+        --          FROM
+        --            children
+        --          WHERE
+        --            children.id NOT IN (contents.id)
+        --        ) as children_deep_count
+        0 as children_deep_count
       FROM
         contents
+      INNER JOIN
+        content_window ON contents.id = content_window.id
       INNER JOIN
         users ON contents.owner_id = users.id
     `;
@@ -1014,35 +1023,35 @@ async function findRootContent(values, options = {}) {
         -- findChildrenCount() method to get the children count. Now we perform a
         -- subquery that is not performant but everything is embedded in one travel.
         -- https://github.com/filipedeschamps/tabnews.com.br/blob/3ab1c65fdfc03d079791d17fde693010ab4caa60/models/content.js#L1013
-        (
-          WITH RECURSIVE children AS (
-            SELECT
-                id,
-                parent_id
-            FROM
-              contents
-            WHERE
-              contents.id = child_to_root_tree.id AND
-              contents.status = 'published'
-            UNION ALL
-              SELECT
-                contents.id,
-                contents.parent_id
-              FROM
-                contents
-              INNER JOIN
-                children ON contents.parent_id = children.id
-              WHERE
-                contents.status = 'published'
-          )
-          SELECT
-            count(children.id)::integer
-          FROM
-            children
-          WHERE
-            children.id NOT IN (child_to_root_tree.id)
-      ) as children_deep_count
-
+        --        (
+        --          WITH RECURSIVE children AS (
+        --            SELECT
+        --                id,
+        --                parent_id
+        --            FROM
+        --              contents
+        --            WHERE
+        --              contents.id = child_to_root_tree.id AND
+        --              contents.status = 'published'
+        --            UNION ALL
+        --              SELECT
+        --                contents.id,
+        --                contents.parent_id
+        --              FROM
+        --                contents
+        --              INNER JOIN
+        --                children ON contents.parent_id = children.id
+        --              WHERE
+        --                contents.status = 'published'
+        --          )
+        --          SELECT
+        --            count(children.id)::integer
+        --          FROM
+        --            children
+        --          WHERE
+        --            children.id NOT IN (child_to_root_tree.id)
+        --      ) as children_deep_count
+        0 as children_deep_count
       FROM
         child_to_root_tree
       INNER JOIN
